@@ -14,15 +14,15 @@ import (
 type Criteria map[string]string
 
 type Question struct {
-	Type         string    `json:"type"`
-	Instructions string    `json:"instructions"`
-	Criteria     Criteria  `json:"criteria"`
-	Options      []string  `json:"options,omitempty"`
+	Type         string   `json:"type"`
+	Instructions string   `json:"instructions"`
+	Criteria     Criteria `json:"criteria"`
+	Options      []string `json:"options,omitempty"`
 }
 
 type JevRequest struct {
-	Model     string               `json:"model"`
-	State     string               `json:"state"`
+	Model     string              `json:"model"`
+	State     string              `json:"state"`
 	Questions map[string]Question `json:"questions"`
 }
 
@@ -92,9 +92,14 @@ func (c *OpenRouterJevClient) Ask(ctx context.Context, state string, questions m
 }
 
 func main() {
-	apiKey := os.Getenv("JEV_API_KEY")
+	// Charger le .env si présent ; l'environment réel garde la priorité
+	if err := loadDotEnv(".env"); err == nil {
+		log.Println("fichier .env chargé")
+	}
+
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
 	if apiKey == "" {
-		log.Fatal("L'environnement JEV_API_KEY n'est pas défini")
+		log.Fatal("L'environnement OPENROUTER_API_KEY n'est pas défini")
 	}
 
 	ctx := context.Background()
@@ -142,13 +147,13 @@ func main() {
 		"is_ironic": {
 			Type:         "noul",
 			Instructions: "Est-ce que ce texte est ironique ?",
-			Criteria: Criteria{"true": "ironique", "false": "sincère"},
+			Criteria:     Criteria{"true": "ironique", "false": "sincère"},
 		},
 		"degree": {
 			Type:         "choice",
 			Instructions: "Degré ?",
 			Options:      []string{"Premier degré", "Second degré"},
-			Criteria: Criteria{"Premier degré": "sincère", "Second degré": "ironique"},
+			Criteria:     Criteria{"Premier degré": "sincère", "Second degré": "ironique"},
 		},
 	}
 
