@@ -1,2 +1,4 @@
-github.com/Gaurav-Gosain/jev-go v0.1.0 h1:cuLNj2kivwqQkL16rSmhz83rSl30yot7RH19VxO56hg=
-github.com/Gaurav-Gosain/jev-go v0.1.0/go.mod h1:JpCNqitpDcxYGpBRJTeCp0/11sxsU48zO6eI0pGidWA=
+github.com/OpenRouterTeam/go-sdk v0.9.139 h1:2NMpaLsqDrlslhOyE2sbmuHVEhdUd4CpXH76yYhmOvg=
+github.com/OpenRouterTeam/go-sdk v0.9.139/go.mod h1:4a0ze9dCIvO81DQGO5ZmCZsHLCmglMwwp8pZfKkEicE=
+github.com/spyzhov/ajson v0.9.6 h1:iJRDaLa+GjhCDAt1yFtU/LKMtLtsNVKkxqlpvrHHlpQ=
+github.com/spyzhov/ajson v0.9.6/go.mod h1:a6oSw0MMb7Z5aD2tPoPO+jq11ETKgXUr2XktHdT8Wt8=

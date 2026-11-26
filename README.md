@@ -61,16 +61,16 @@ Texte : "Ah oui, bravo, t'as encore oublié mes clés au bureau. Franchement, ch
 
 ## Détails techniques
 
-- Endpoint : `https://openrouter.ai/api/alpha/decisions` (API alpha, client HTTP direct, pas de SDK).
+- SDK : SDK Go officiel OpenRouter (`github.com/OpenRouterTeam/go-sdk`), endpoint `Alpha.Decisions.Create` (`https://openrouter.ai/api/alpha/decisions`).
 - Modèle : `typesafe/jev-1.13`.
-- Les questions sont un **map** (`question id` → question) et les critères un **map** (résultat → règle) — l'API rejette les tableaux / chaînes simples (400).
-- Headers `HTTP-Referer` et `X-Title` inclus pour l'attribution OpenRouter.
-- Timeout HTTP : 30 s par requête.
+- Les questions sont typées via `components.Questions` (`noul` et `choice`) et les critères passés sous forme de map / struct dédiée.
+- Headers `HTTP-Referer` et `X-Title` configurés via `WithHTTPReferer` et `WithXTitle` pour l'attribution OpenRouter.
+- Timeout HTTP : 30 s par requête (`WithTimeout`).
 
 ## Structure
 
 ```
-main.go        client OpenRouter Decisions + batterie de tests
+main.go        client OpenRouter SDK (Alpha Decisions) + batterie de tests
 dotenv.go      mini-loader .env (zéro dépendance)
 dotenv_test.go tests du loader
 ```

@@ -2,4 +2,6 @@ module jevtest
 
 go 1.27.1
 
-require github.com/Gaurav-Gosain/jev-go v0.1.0
+require github.com/OpenRouterTeam/go-sdk v0.9.139
+
+require github.com/spyzhov/ajson v0.9.6 // indirect

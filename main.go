@@ -1,98 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
+
+	openrouter "github.com/OpenRouterTeam/go-sdk"
+	"github.com/OpenRouterTeam/go-sdk/models/components"
+	"github.com/OpenRouterTeam/go-sdk/optionalnullable"
 )
 
-type Criteria map[string]string
-
-type Question struct {
-	Type         string   `json:"type"`
-	Instructions string   `json:"instructions"`
-	Criteria     Criteria `json:"criteria"`
-	Options      []string `json:"options,omitempty"`
-}
-
-type JevRequest struct {
-	Model     string              `json:"model"`
-	State     string              `json:"state"`
-	Questions map[string]Question `json:"questions"`
-}
-
-type JevAnswer struct {
-	Type          string             `json:"type"`
-	Choice        string             `json:"choice,omitempty"`
-	Noul          float64            `json:"noul,omitempty"`
-	Confidence    float64            `json:"confidence,omitempty"`
-	Probabilities map[string]float64 `json:"probabilities,omitempty"`
-}
-
-type JevResponse struct {
-	Answers map[string]JevAnswer `json:"answers"`
-}
-
-type OpenRouterJevClient struct {
-	APIKey     string
-	HTTPClient *http.Client
-	Endpoint   string
-	Model      string
-}
-
-func NewOpenRouterClient(apiKey string) *OpenRouterJevClient {
-	return &OpenRouterJevClient{
-		APIKey: apiKey,
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		Endpoint: "https://openrouter.ai/api/alpha/decisions",
-		Model:    "typesafe/jev-1.13",
-	}
-}
-
-func (c *OpenRouterJevClient) Ask(ctx context.Context, state string, questions map[string]Question) (map[string]JevAnswer, time.Duration, error) {
-	reqBody := JevRequest{
-		Model:     c.Model,
-		State:     state,
-		Questions: questions,
-	}
-
-	jsonData, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequestWithContext(ctx, "POST", c.Endpoint, bytes.NewBuffer(jsonData))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-	req.Header.Set("HTTP-Referer", "https://github.com/hermes-agent/jevtest")
-	req.Header.Set("X-Title", "Jev Test App")
-
-	start := time.Now()
-	resp, err := c.HTTPClient.Do(req)
-	elapsed := time.Since(start)
-
-	if err != nil {
-		return nil, elapsed, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, elapsed, fmt.Errorf("API error: status %d", resp.StatusCode)
-	}
-
-	var result JevResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, elapsed, err
-	}
-
-	return result.Answers, elapsed, nil
-}
+const jevModel = "typesafe/jev-1.13"
 
 func main() {
-	// Charger le .env si présent ; l'environment réel garde la priorité
+	// Charger le .env si présent ; l'environnement réel garde la priorité
 	if err := loadDotEnv(".env"); err == nil {
 		log.Println("fichier .env chargé")
 	}
@@ -103,7 +26,12 @@ func main() {
 	}
 
 	ctx := context.Background()
-	client := NewOpenRouterClient(apiKey)
+	client := openrouter.New(
+		openrouter.WithSecurity(apiKey),
+		openrouter.WithTimeout(30*time.Second),
+		openrouter.WithHTTPReferer("https://github.com/hermes-agent/jevtest"),
+		openrouter.WithXTitle("Jev Test App"),
+	)
 
 	// Batterie de cas délicats
 	tests := []struct {
@@ -143,25 +71,41 @@ func main() {
 		},
 	}
 
-	questions := map[string]Question{
-		"is_ironic": {
-			Type:         "noul",
-			Instructions: "Est-ce que ce texte est ironique ?",
-			Criteria:     Criteria{"true": "ironique", "false": "sincère"},
-		},
-		"degree": {
-			Type:         "choice",
-			Instructions: "Degré ?",
-			Options:      []string{"Premier degré", "Second degré"},
-			Criteria:     Criteria{"Premier degré": "sincère", "Second degré": "ironique"},
-		},
+	questions := map[string]components.Questions{
+		"is_ironic": components.CreateQuestionsNoul(components.DecisionsNoulQuestion{
+			Type: components.DecisionsNoulQuestionTypeNoul,
+			Instructions: optionalnullable.From(openrouter.Pointer(
+				components.CreateDecisionsNoulQuestionInstructionsStr("Est-ce que ce texte est ironique ?"),
+			)),
+			Criteria: &components.DecisionsNoulQuestionCriteria{
+				True:  optionalnullable.From(openrouter.Pointer(components.CreateTrueStr("ironique"))),
+				False: optionalnullable.From(openrouter.Pointer(components.CreateFalseStr("sincère"))),
+			},
+		}),
+		"degree": components.CreateQuestionsChoice(components.DecisionsChoiceQuestion{
+			Type: components.DecisionsChoiceQuestionTypeChoice,
+			Instructions: optionalnullable.From(openrouter.Pointer(
+				components.CreateDecisionsChoiceQuestionInstructionsStr("Degré ?"),
+			)),
+			Criteria: map[string]*components.Criteria{
+				"Premier degré": openrouter.Pointer(components.CreateCriteriaStr("sincère")),
+				"Second degré":  openrouter.Pointer(components.CreateCriteriaStr("ironique")),
+			},
+		}),
 	}
 
 	totalTime := time.Duration(0)
 
 	for i, tc := range tests {
-		answers, elapsed, err := client.Ask(ctx, tc.text, questions)
+		start := time.Now()
+		resp, err := client.Alpha.Decisions.Create(ctx, components.DecisionsRequest{
+			Model:     jevModel,
+			State:     components.CreateStateStr(tc.text),
+			Questions: questions,
+		})
+		elapsed := time.Since(start)
 		totalTime += elapsed
+
 		if err != nil {
 			fmt.Printf("[%d] Erreur : %v\n", i+1, err)
 			continue
@@ -170,18 +114,24 @@ func main() {
 		fmt.Printf("\n=== Cas %d : %s ===\n", i+1, tc.comment)
 		fmt.Printf("Texte : %q\n", tc.text)
 
-		if deg, ok := answers["degree"]; ok && deg.Type == "choice" {
-			// Distillation des probabilités par option
+		if ans, ok := resp.Answers["degree"]; ok && ans.DecisionsChoiceAnswer != nil {
+			deg := ans.DecisionsChoiceAnswer
+
 			probs := ""
 			for _, opt := range []string{"Premier degré", "Second degré"} {
 				probs += fmt.Sprintf("%s: %.0f%%  ", opt, deg.Probabilities[opt]*100)
 			}
 
+			var conf float64
+			if deg.Confidence != nil {
+				conf = *deg.Confidence
+			}
+
 			verdict := ""
 			switch {
-			case deg.Confidence >= 0.75:
+			case conf >= 0.75:
 				verdict = "TRANCHE"
-			case deg.Confidence >= 0.5:
+			case conf >= 0.5:
 				verdict = "DOUTE"
 			default:
 				verdict = "TREMBLE (considérer comme 1er degré par défaut)"
@@ -190,8 +140,8 @@ func main() {
 			fmt.Printf("  CHOICE -> %-15s (%s) | %s\n", deg.Choice, verdict, probs)
 		}
 
-		if n, ok := answers["is_ironic"]; ok && n.Type == "noul" {
-			fmt.Printf("  NOUL   -> probabilité ironique: %.0f%%\n", n.Noul*100)
+		if ans, ok := resp.Answers["is_ironic"]; ok && ans.DecisionsNoulAnswer != nil {
+			fmt.Printf("  NOUL   -> probabilité ironique: %.0f%%\n", ans.DecisionsNoulAnswer.Noul*100)
 		}
 
 		fmt.Printf("  Attendu: %s | Temps: %v\n", tc.expected, elapsed)
